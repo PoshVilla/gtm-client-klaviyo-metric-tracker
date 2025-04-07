@@ -4,6 +4,7 @@
 
 Google Tag Manager template for tracking Klaviyo events client-side using _learnq. Identify users and send custom metrics without writing code or using custom HTML tags.
 
+## A little more info...
 A Google Tag Manager tag template for sending custom events (metrics) to Klaviyo on the **client-side**, without writing any JavaScript.
 
 This template lets you track custom user interactions—such as product views, quiz completions, signups, or any other meaningful activity—and pass event data to Klaviyo for segmentation, flow logic, or reporting. It also handles user identification via email or the Klaviyo cookie (`_kx`), and supports optional properties and event value fields.
