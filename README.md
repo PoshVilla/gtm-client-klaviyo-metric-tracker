@@ -1,7 +1,6 @@
-# gtm-client-klaviyo-metric-tracker
-*TLDR;* Google Tag Manager template for tracking Klaviyo events client-side using _learnq. Identify users and send custom metrics without writing code or using custom HTML tags.
-
 # GTM Client - Klaviyo Metric Tracker
+
+## * TLDR; * Google Tag Manager template for tracking Klaviyo events client-side using _learnq. Identify users and send custom metrics without writing code or using custom HTML tags.
 
 A Google Tag Manager tag template for sending custom events (metrics) to Klaviyo on the **client-side**, without writing any JavaScript.
 
