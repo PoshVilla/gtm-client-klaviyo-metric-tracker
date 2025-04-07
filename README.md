@@ -81,7 +81,7 @@ This template includes a full test suite to verify behavior such as:
 
 ## 📄 License
 
-MIT © 2024 [Your Name]
+MIT © 2025 - Ross Hopkins
 
 ---
 
