@@ -1,0 +1,85 @@
+{
+  "exportFormatVersion": 2,
+  "tag": [
+    {
+      "accountId": "1234567890",
+      "containerId": "GTM-XXXXXXX",
+      "tagId": "1",
+      "name": "Klaviyo - Metric - Viewed Product",
+      "type": "tag.customTemplate",
+      "tagFiringOption": "oncePerEvent",
+      "parameter": [
+        {
+          "type": "template",
+          "key": "eventName",
+          "value": "Viewed Product"
+        },
+        {
+          "type": "template",
+          "key": "email",
+          "value": "{{CJS - PRIMARY - Email}}"
+        },
+        {
+          "type": "template",
+          "key": "exchangeId",
+          "value": "{{Cookie - _kx}}"
+        },
+        {
+          "type": "template",
+          "key": "eventValue",
+          "value": "0"
+        },
+        {
+          "type": "boolean",
+          "key": "debug",
+          "value": "true"
+        },
+        {
+          "type": "group",
+          "key": "eventPropertiesGroup",
+          "list": [
+            {
+              "map": [
+                {
+                  "type": "template",
+                  "key": "propertyKey",
+                  "value": "Categories"
+                },
+                {
+                  "type": "template",
+                  "key": "propertyValue",
+                  "value": "Certification, Program, Engagement, View, B2C, Interest"
+                },
+                {
+                  "type": "template",
+                  "key": "propertyType",
+                  "value": "array"
+                }
+              ]
+            },
+            {
+              "map": [
+                {
+                  "type": "template",
+                  "key": "propertyKey",
+                  "value": "Page Path"
+                },
+                {
+                  "type": "template",
+                  "key": "propertyValue",
+                  "value": "{{Page Path}}"
+                },
+                {
+                  "type": "template",
+                  "key": "propertyType",
+                  "value": "text"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "tagManagerUrl": "https://tagmanager.google.com/#/container/accounts/1234567890/containers/GTM-XXXXXXX/workspaces/1/tags/1"
+    }
+  ]
+}
