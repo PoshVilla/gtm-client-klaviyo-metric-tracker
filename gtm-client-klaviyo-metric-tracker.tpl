@@ -135,7 +135,7 @@ const eventName = data.eventName;
 const email = data.email || '';
 const exchangeId = data.exchangeId || '';
 const eventValue = data.eventValue || '';
-const eventParams = data.eventPropertiesGroup || [];
+const eventParams = data.eventProperties || [];
 const debug = data.debug === true;
 
 // === Helper: Trim Whitespace ===
