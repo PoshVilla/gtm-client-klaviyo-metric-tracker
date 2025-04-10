@@ -105,7 +105,12 @@ ___TEMPLATE_PARAMETERS___
     "type": "TEXT",
     "name": "echangeId",
     "displayName": "_kx Cookie (Exchange Id)",
-    "simpleValueType": true
+    "simpleValueType": true,
+    "valueValidators": [
+      {
+        "type": "NON_EMPTY"
+      }
+    ]
   },
   {
     "type": "LABEL",
@@ -116,7 +121,12 @@ ___TEMPLATE_PARAMETERS___
     "type": "TEXT",
     "name": "email",
     "displayName": "Email Address",
-    "simpleValueType": true
+    "simpleValueType": true,
+    "valueValidators": [
+      {
+        "type": "NON_EMPTY"
+      }
+    ]
   }
 ]
 
@@ -478,6 +488,6 @@ setup: |-
 
 ___NOTES___
 
-Created on 07/04/2025, 15:42:24
+Created on 10/04/2025, 14:47:03
 
 
