@@ -1,4 +1,4 @@
-﻿___TERMS_OF_SERVICE___
+___TERMS_OF_SERVICE___
 
 By creating or modifying this file you agree to Google Tag Manager's Community
 Template Gallery Developer Terms of Service available at
@@ -53,8 +53,33 @@ ___TEMPLATE_PARAMETERS___
   },
   {
     "type": "LABEL",
+    "name": "labelEventVolumeLimit",
+    "displayName": "\u003cbr\u003eIf someone can trigger this event multiple times, use this option to prevent it from being tracked more than once every few hours.\u003cbr\u003e\u003cbr\u003e"
+  },
+  {
+    "type": "CHECKBOX",
+    "name": "eventVolumeLimit",
+    "checkboxText": "Limit how often this event tracks?",
+    "simpleValueType": true
+  },
+  {
+    "type": "TEXT",
+    "name": "eventVolumeLimitHours",
+    "displayName": "Enter the minimum time between occurrences of this event (in hours).",
+    "simpleValueType": true,
+    "enablingConditions": [
+      {
+        "paramName": "eventVolumeLimit",
+        "paramValue": true,
+        "type": "EQUALS"
+      }
+    ],
+    "help": "The event will only track this event once per person within this time window."
+  },
+  {
+    "type": "LABEL",
     "name": "labelEventProperties",
-    "displayName": "\u003cbr\u003eIf you\u0027d like the event to contain additional information in the form of properties, add them below.\u003cbr\u003e\nEnsure that the \"Property Type\" is set for each property, enabling data to be saved in the correct format within Klaviyo.\u003cbr\u003e\n\u003cb\u003eNote:\u003c/b\u003e \u003ci\u003eFor the array type, enter a comma (,) delimited list of values - for example, \"value 1,value2,value 3\".\u003c/i\u003e\u003cbr\u003e\u003cbr\u003e"
+    "displayName": "\u003cdiv class\u003d\"gtm-zippy-title blg-body blg-comfortable\"\u003e\u003c/div\u003eIf you\u0027d like the event to contain additional information in the form of properties, add them below.\u003cbr\u003e\nEnsure that the \"Property Type\" is set for each property, enabling data to be saved in the correct format within Klaviyo.\u003cbr\u003e\n\u003cb\u003eNote:\u003c/b\u003e \u003ci\u003eFor the array type, enter a comma (,) delimited list of values - for example, \"value 1,value2,value 3\".\u003c/i\u003e\u003cbr\u003e\u003cbr\u003e"
   },
   {
     "type": "SIMPLE_TABLE",
@@ -93,6 +118,60 @@ ___TEMPLATE_PARAMETERS___
           }
         ],
         "macrosInSelect": true
+      }
+    ]
+  },
+  {
+    "type": "LABEL",
+    "name": "labelProfileProperties",
+    "displayName": "\u003cbr\u003eIf you\u0027d like to set any Profile Properties whilst tracking the Custom event, tick the box below and add them in the section that appears.\u003cbr\u003e\nEnsure that the \"Property Type\" is set for each property, enabling data to be saved in the correct format within Klaviyo.\u003cbr\u003e\u003cbr\u003e"
+  },
+  {
+    "type": "CHECKBOX",
+    "name": "sendProfileProperties",
+    "checkboxText": "Send Profile Properties?",
+    "simpleValueType": true
+  },
+  {
+    "type": "SIMPLE_TABLE",
+    "name": "profileProperties",
+    "displayName": "Profile Properties",
+    "simpleTableColumns": [
+      {
+        "defaultValue": "",
+        "displayName": "Key",
+        "name": "propertyKey",
+        "type": "TEXT"
+      },
+      {
+        "defaultValue": "",
+        "displayName": "Value",
+        "name": "propertyValue",
+        "type": "TEXT"
+      },
+      {
+        "defaultValue": "text",
+        "displayName": "Property Type",
+        "name": "propertyType",
+        "type": "SELECT",
+        "selectItems": [
+          {
+            "value": "text",
+            "displayValue": "Text / String"
+          },
+          {
+            "value": "number",
+            "displayValue": "Number"
+          }
+        ],
+        "macrosInSelect": true
+      }
+    ],
+    "enablingConditions": [
+      {
+        "paramName": "sendProfileProperties",
+        "paramValue": true,
+        "type": "EQUALS"
       }
     ]
   },
@@ -146,6 +225,10 @@ const email = data.email || '';
 const exchangeId = data.exchangeId || '';
 const eventValue = data.eventValue || '';
 const eventParams = data.eventProperties || [];
+const profileParams = data.profileProperties || [];
+const sendProfileProperties = data.sendProfileProperties === true;
+const eventVolumeLimit = data.eventVolumeLimit === true;
+const eventVolumeLimitHours = toInt(data.eventVolumeLimitHours || 1);
 const debug = data.debug === true;
 
 // === Helper: Trim Whitespace ===
@@ -189,16 +272,20 @@ function parseArray(value) {
   return result;
 }
 
+// === Helper: Coerce to number if valid, else string ===
+function coerceValue(val) {
+  var num = val * 1;
+  return (typeof num === 'number' && num === num) ? num : val;
+}
+
 // === Build eventProperties ===
 var eventProperties = {};
 
-// Include value if valid
 if (eventValue !== '' && eventValue !== '0') {
   eventProperties.value = toTwoDecimals(eventValue);
   if (debug) logToConsole('Klaviyo Tracker: value added = ' + eventProperties.value);
 }
 
-// Loop through additional properties
 for (var i = 0; i < eventParams.length; i++) {
   var key = eventParams[i].propertyKey;
   var val = eventParams[i].propertyValue;
@@ -217,15 +304,65 @@ for (var i = 0; i < eventParams.length; i++) {
   }
 }
 
+// === Apply $event_id based on volume limit logic ===
+if (eventVolumeLimit) {
+  var timestamp = data.timestamp * 1; // milliseconds since epoch
+  var windowMs = eventVolumeLimitHours * 60 * 60 * 1000;
+  var rounded = (timestamp / windowMs + '') .split('.')[0] * 1;
+  var eventIdKey = '$event_id';
+  eventProperties[eventIdKey] = rounded;
+
+  if (debug) logToConsole('Klaviyo Tracker: $event_id = ' + rounded);
+}
+
+// === Build profileProperties ===
+var profileProperties = {};
+var hasProfileProps = false;
+
+if (sendProfileProperties) {
+  for (var j = 0; j < profileParams.length; j++) {
+    var pKey = profileParams[j].propertyKey;
+    var pVal = profileParams[j].propertyValue;
+
+    if (pKey && pKey !== '') {
+      profileProperties[pKey] = coerceValue(pVal);
+      hasProfileProps = true;
+      if (debug) logToConsole('Klaviyo Tracker: profile ' + pKey + ' = ' + profileProperties[pKey]);
+    }
+  }
+}
+
 // === Identify ===
+var identifyPayload = {};
+var sendIdentify = false;
+
 if (email !== '') {
-  _learnq(['identify', { email: email }]);
+  identifyPayload.email = email;
+  sendIdentify = true;
   if (debug) dataLayerPush({ event: 'Klaviyo Identify', message: 'Identified via email', email: email });
 } else if (exchangeId !== '') {
-  _learnq(['identify', { '$exchange_id': exchangeId }]);
+  var exchangeKey = '$exchange_id';
+  identifyPayload[exchangeKey] = exchangeId;
+  sendIdentify = true;
   if (debug) dataLayerPush({ event: 'Klaviyo Identify', message: 'Identified via $exchange_id', exchangeId: exchangeId });
-} else if (debug) {
+}
+
+if (sendProfileProperties && hasProfileProps) {
+  for (var key in profileProperties) {
+    identifyPayload[key] = profileProperties[key];
+  }
+  sendIdentify = true;
+  if (debug && !email && !exchangeId) {
+    dataLayerPush({ event: 'Klaviyo Identify', message: 'Identified via profile properties only' });
+  }
+}
+
+if (!sendIdentify && debug) {
   dataLayerPush({ event: 'Klaviyo Identify', message: 'No identifier provided' });
+}
+
+if (sendIdentify) {
+  _learnq(['identify', identifyPayload]);
 }
 
 // === Track ===
@@ -488,6 +625,4 @@ setup: |-
 
 ___NOTES___
 
-Created on 10/04/2025, 14:47:03
-
-
+Created on 27/05/2025, 09:50:18
