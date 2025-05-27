@@ -5,9 +5,10 @@
 Google Tag Manager template for tracking Klaviyo events client-side using _learnq. Identify users and send custom metrics without writing code or using custom HTML tags.
 
 ## A little more info...
+
 A Google Tag Manager tag template for sending custom events (metrics) to Klaviyo on the **client-side**, without writing any JavaScript.
 
-This template lets you track custom user interactions—such as product views, quiz completions, signups, or any other meaningful activity—and pass event data to Klaviyo for segmentation, flow logic, or reporting. It also handles user identification via email or the Klaviyo cookie (`_kx`), and supports optional properties and event value fields.
+This template lets you track custom user interactions—such as product views, quiz completions, signups, or any other meaningful activity—and pass event data to Klaviyo for segmentation, flow logic, or reporting. It also handles user identification via email or the Klaviyo cookie (`_kx`), and supports optional properties, event value fields, and profile updates.
 
 ---
 
@@ -15,7 +16,9 @@ This template lets you track custom user interactions—such as product views, q
 
 - No need for custom HTML tags
 - Identify users via email or `$exchange_id` (`_kx` cookie)
-- Send event name, `value`, and unlimited custom properties
+- Send event name, `value`, and unlimited custom event properties
+- Optionally include **Profile Properties** (for updating user-level fields)
+- Optionally enable **Event Volume Limit** (prevent duplicate tracking per time window)
 - Supports typed properties: text, number, or array (comma-separated)
 - Built-in debug mode (logs to console + `dataLayer`)
 - Fully sandbox-safe for use in GTM Templates
@@ -55,7 +58,9 @@ This template opts for reliability and GTM compatibility over advanced JS featur
    - **Event Name** – What you want the metric to be called
    - **Email** – Optional; leave blank to use `_kx` cookie
    - **Value** – Optional numeric value (e.g. price)
-   - **Properties** – Add custom data fields
+   - **Properties** – Add custom data fields for the event
+   - **Profile Properties** – (Optional) Add persistent attributes to the user profile
+   - **Event Volume Limit** – (Optional) Prevent duplicate events by hour-based window
 4. Add a trigger (e.g. form submission, page view)
 5. Preview & publish
 
@@ -66,7 +71,10 @@ This template opts for reliability and GTM compatibility over advanced JS featur
 - **Value** is auto-converted to a number with 2 decimal places
 - **Array-type** properties should be comma-separated (e.g. `Program,Certification,B2C`)
 - **Exchange ID** should reference a GTM Cookie Variable for `_kx` (e.g. `{{Cookie - _kx}}`)
-- If both **email** and **_kx** are missing, the event will still be tracked anonymously
+- **Profile Properties** will update persistent fields on the Klaviyo profile
+- **Event Volume Limit** adds a time-bucketed `$event_id` to deduplicate repeated events
+  - For example, if set to `1`, events will only track once per hour per profile
+- If both **email** and **_kx** are missing, the event will still be tracked anonymously (unless profile properties are used)
 
 ---
 
@@ -75,6 +83,7 @@ This template opts for reliability and GTM compatibility over advanced JS featur
 This template includes a full test suite to verify behavior such as:
 - Firing `identify` with email or `$exchange_id`
 - Correctly formatting `value` and typed properties
+- Applying `$event_id` deduplication window correctly
 - Preventing tracking if no event name is set
 
 ---
@@ -94,5 +103,3 @@ A server-side version (`gtm-server-klaviyo-metric-tracker`) is planned for use w
 ## 🙌 Credit
 
 Built and maintained by [Ross] for the GTM and Klaviyo community.
-
-
