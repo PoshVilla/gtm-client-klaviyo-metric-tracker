@@ -102,4 +102,4 @@ A server-side version (`gtm-server-klaviyo-metric-tracker`) is planned for use w
 
 ## 🙌 Credit
 
-Built and maintained by [Ross] for the GTM and Klaviyo community.
+Built and maintained by [PoshVilla] (Ross Hopkins) for the GTM and Klaviyo community.
