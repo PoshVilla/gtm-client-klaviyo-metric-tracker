@@ -37,9 +37,22 @@ Two of these three changes don't require you to reconfigure existing tags. **The
 - **Replaced the `$event_id`-based volume limiting with a real cookie-based mechanism.** The previous approach appended a time-bucketed `$event_id` to the event payload, but this did not actually prevent `_learnq.track()` from re-firing — it was dead weight. Volume limiting now reads/writes a `kmt-log` browser cookie (1-year max-age, domain-scoped to the top two labels of the hostname, e.g. `.corporatefinanceinstitute.com`) storing a `eventKey:unixSeconds` pair per event. If the same event fires again inside the configured window, the tag skips the `_learnq.track()` call entirely (while still resolving `gtmOnSuccess()` so GTM doesn't report an error).
 - **Added debug logging for the volume-limit gate** — when Debug mode is enabled, the tag now logs when the limit is active, when a cookie is created, and when/why an event is skipped, making it much easier to tell "volume limited" apart from "actually failed" during testing.
 - **Removed the dead `$event_id` logic** entirely, along with the debug logging tied to it, to keep the code path simple and honest about what it's doing.
-- **New required GTM permissions:** the cookie-based approach calls `getCookieValues`, `setCookie`, and `getUrl`, none of which the previous version needed. If you're editing this template directly in GTM's Template editor, GTM will prompt you to grant these permissions the first time you save — accept that prompt so the permissions block matches what the code actually needs.
+- **New required GTM permissions:** the cookie-based approach calls `getCookieValues`, `setCookie`, and `getUrl`, none of which the previous version needed. The permissions block in this `.tpl` now includes the exact grants GTM requires (see the checklist below) — no manual guessing needed.
 - **Fixed the Exchange ID parameter name.** The template parameter was named `echangeId` (typo) while the script read `data.exchangeId` — meaning the "_kx Cookie (Exchange Id)" field was never actually wired up to the tracking logic; any value entered there was silently dropped. The parameter is now correctly named `exchangeId`, matching both the script and the repo's own `sample-klaviyo-tag.json`. **Action required:** any tag already using this field will show it as blank after updating and needs the value re-entered (e.g. `{{Cookie - _kx}}`).
 - **Added a `debug` checkbox to the tag UI.** The script has always read `data.debug`, but no corresponding parameter existed in `TEMPLATE_PARAMETERS` — there was no way to turn Debug mode on from GTM's tag editor at all; it only worked if `debug` was set directly via the API or a raw tag import (as the sample tag JSON in this repo does). Added an "Enable debug mode?" checkbox so it's actually usable from the tag UI.
+
+### ✅ Post-Update Checklist (Existing Installations)
+
+If you're updating an already-installed copy of this template (rather than importing fresh), work through this after importing and before publishing:
+
+- [ ] **Grant the `get_cookies` permission** — Cookie access: *Specific*, Allowed cookie names: `kmt-log`
+- [ ] **Grant the `set_cookies` permission** — Cookie name: `kmt-log`, Domain: `*`, Path: `*`, Secure: *Any*, Session: *Any*
+- [ ] **Grant the `get_url` permission** — URL parts: *Any*, Queries allowed: *Any*
+- [ ] **Re-enter the "_kx Cookie (Exchange Id)" value** (e.g. `{{Cookie - _kx}}`) on every existing tag using this template — it will show as blank due to the parameter rename above
+- [ ] **Test in Preview mode** before publishing — confirm existing tags still fire correctly and the `kmt-log` cookie is being set
+- [ ] **Publish a new container version** — saving the template only updates your workspace draft
+
+This template's `.tpl` file already has the permissions above baked in (see [Updating This Template](#-updating-this-template) below), so if you import the file directly you should only need the last three steps.
 
 ---
 
@@ -96,6 +109,24 @@ This template opts for reliability and GTM compatibility over advanced JS featur
    - **Enable debug mode?** – (Optional) Logs identify/track calls and volume-limit decisions to the console and `dataLayer`; turn off before publishing to production
 4. Add a trigger (e.g. form submission, page view)
 5. Preview & publish
+
+---
+
+## 🔧 Updating This Template
+
+If you already have this template installed and want to pull in a newer version of this `.tpl` file, **open your existing "Klaviyo Metric Tracker" custom template in GTM first** — don't create a new one.
+
+1. In GTM, go to **Templates** and open the existing **Klaviyo Metric Tracker** custom template (the one your tags already use)
+2. Click the **⋮ (three-dot menu)** in the top right → **Import**
+3. Select the updated `.tpl` file — this replaces the Info, Fields, Code, Permissions, Tests, and Notes tabs of this *same* template
+4. **Save**
+
+Because you updated the same template (same internal ID) rather than creating a new one, your existing tags keep working — they aren't deleted or unlinked. Two things to double-check afterward, though:
+
+- **New permissions:** if the updated code calls a sandboxed API (like reading/writing cookies) that the previous version didn't need, GTM will show an error on Save until you grant it. Work through any prompted permissions — accept them, or set the specific values called for in that version's [Changes in This Version](#-changes-in-this-version) section.
+- **Renamed fields:** if a template parameter's internal name changes between versions (this happens occasionally when fixing bugs — see the Exchange ID fix in this version), any tag that already had a value in that field will show it as blank. That's expected — the tag isn't broken, just that one field needs re-entering.
+
+Saving the template only updates your GTM **workspace** draft. As with any GTM change, it won't take effect for site visitors until you **publish a new container version**.
 
 ---
 
