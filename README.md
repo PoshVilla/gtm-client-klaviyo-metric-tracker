@@ -39,6 +39,7 @@ Two of these three changes don't require you to reconfigure existing tags. **The
 - **Removed the dead `$event_id` logic** entirely, along with the debug logging tied to it, to keep the code path simple and honest about what it's doing.
 - **New required GTM permissions:** the cookie-based approach calls `getCookieValues`, `setCookie`, and `getUrl`, none of which the previous version needed. If you're editing this template directly in GTM's Template editor, GTM will prompt you to grant these permissions the first time you save — accept that prompt so the permissions block matches what the code actually needs.
 - **Fixed the Exchange ID parameter name.** The template parameter was named `echangeId` (typo) while the script read `data.exchangeId` — meaning the "_kx Cookie (Exchange Id)" field was never actually wired up to the tracking logic; any value entered there was silently dropped. The parameter is now correctly named `exchangeId`, matching both the script and the repo's own `sample-klaviyo-tag.json`. **Action required:** any tag already using this field will show it as blank after updating and needs the value re-entered (e.g. `{{Cookie - _kx}}`).
+- **Added a `debug` checkbox to the tag UI.** The script has always read `data.debug`, but no corresponding parameter existed in `TEMPLATE_PARAMETERS` — there was no way to turn Debug mode on from GTM's tag editor at all; it only worked if `debug` was set directly via the API or a raw tag import (as the sample tag JSON in this repo does). Added an "Enable debug mode?" checkbox so it's actually usable from the tag UI.
 
 ---
 
@@ -92,6 +93,7 @@ This template opts for reliability and GTM compatibility over advanced JS featur
    - **Properties** – Add custom data fields for the event
    - **Profile Properties** – (Optional) Add persistent attributes to the user profile
    - **Event Volume Limit** – (Optional) Prevent duplicate events by hour-based window
+   - **Enable debug mode?** – (Optional) Logs identify/track calls and volume-limit decisions to the console and `dataLayer`; turn off before publishing to production
 4. Add a trigger (e.g. form submission, page view)
 5. Preview & publish
 

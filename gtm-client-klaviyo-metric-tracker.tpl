@@ -214,6 +214,17 @@ ___TEMPLATE_PARAMETERS___
         "type": "NON_EMPTY"
       }
     ]
+  },
+  {
+    "type": "LABEL",
+    "name": "labelDebug",
+    "displayName": "\u003cbr\u003e\u003cdiv class\u003d\"gtm-zippy-title blg-body blg-comfortable\"\u003e\u003c/div\u003e\u003cb\u003eDebugging\u003c/b\u003e\u003cbr\u003eEnable this while testing to log identify/track calls, and volume-limit skip/allow decisions, to the browser console and the dataLayer. Turn this off again before publishing to production.\u003cbr\u003e\u003cbr\u003e"
+  },
+  {
+    "type": "CHECKBOX",
+    "name": "debug",
+    "checkboxText": "Enable debug mode?",
+    "simpleValueType": true
   }
 ]
 
