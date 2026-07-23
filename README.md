@@ -12,14 +12,42 @@ This template lets you track custom user interactions—such as product views, q
 
 ---
 
+## 🔄 Changes in This Version
+
+**Last updated:** 23 July 2026
+
+### Non-Technical Summary
+
+This update makes the tag more trustworthy in two ways.
+
+First, **True/False (boolean) values are now handled correctly everywhere**. Previously, a property like "Is Subscriber: false" risked being silently turned into the number `0` behind the scenes — which meant "false" and "unset" could look the same to Klaviyo. That's fixed, so boolean properties now say exactly what they mean, whether you're setting them on an event or on a person's profile.
+
+Second, **the "don't track this more than once every X hours" option now actually works as intended**. Previously it relied on a trick that, on investigation, never really stopped duplicate events from reaching Klaviyo. It's been replaced with a proper mechanism: the tag remembers (via a small browser cookie) the last time each event fired, and skips re-firing it within your chosen time window — the same way it always should have.
+
+Neither change requires you to reconfigure existing tags, though you'll now see a **Boolean** option in the Property Type dropdown that wasn't there before.
+
+### Technical Summary
+
+- **Added `coerceBool()` helper** — safely interprets `true`/`false` (or the strings `"true"`/`"false"`), instead of relying on `value * 1`, which previously coerced `false` to `0` and silently corrupted boolean data.
+- **Added `isEmpty()` helper** — a single, consistent check for `null`, `undefined`, and blank-string values, applied before building both event and profile properties. This replaces ad hoc checks and ensures empty values are never sent to Klaviyo's API.
+- **Property building is now type-aware**: each property's declared `propertyType` (`text`, `number`, `boolean`, or `array` for events) determines how its value is coerced, with boolean values explicitly bypassing the numeric coercion path that would otherwise corrupt `false`.
+- **Added a `Boolean` option to the Property Type dropdown** for both Metric/Event Properties and Profile Properties, so this type-aware handling is actually reachable from the tag's UI (previously the code path existed but had no way to be triggered).
+- **Replaced the `$event_id`-based volume limiting with a real cookie-based mechanism.** The previous approach appended a time-bucketed `$event_id` to the event payload, but this did not actually prevent `_learnq.track()` from re-firing — it was dead weight. Volume limiting now reads/writes a `kmt-log` browser cookie (1-year max-age, domain-scoped to the top two labels of the hostname, e.g. `.corporatefinanceinstitute.com`) storing a `eventKey:unixSeconds` pair per event. If the same event fires again inside the configured window, the tag skips the `_learnq.track()` call entirely (while still resolving `gtmOnSuccess()` so GTM doesn't report an error).
+- **Added debug logging for the volume-limit gate** — when Debug mode is enabled, the tag now logs when the limit is active, when a cookie is created, and when/why an event is skipped, making it much easier to tell "volume limited" apart from "actually failed" during testing.
+- **Removed the dead `$event_id` logic** entirely, along with the debug logging tied to it, to keep the code path simple and honest about what it's doing.
+- **New required GTM permissions:** the cookie-based approach calls `getCookieValues`, `setCookie`, and `getUrl`, none of which the previous version needed. If you're editing this template directly in GTM's Template editor, GTM will prompt you to grant these permissions the first time you save — accept that prompt so the permissions block matches what the code actually needs.
+
+---
+
 ## ✅ Features
 
 - No need for custom HTML tags
 - Identify users via email or `$exchange_id` (`_kx` cookie)
 - Send event name, `value`, and unlimited custom event properties
 - Optionally include **Profile Properties** (for updating user-level fields)
-- Optionally enable **Event Volume Limit** (prevent duplicate tracking per time window)
-- Supports typed properties: text, number, or array (comma-separated)
+- Optionally enable **Event Volume Limit** (prevent duplicate tracking per time window, backed by a real browser cookie)
+- Supports typed properties: text, number, boolean, or array (comma-separated) for events; text, number, or boolean for Profile Properties (array support for Profile Properties is planned — see [Future Plans](#-future-plans))
+- Boolean values are handled safely — `false` is never silently corrupted into `0`
 - Built-in debug mode (logs to console + `dataLayer`)
 - Fully sandbox-safe for use in GTM Templates
 - Compatible with all GTM web containers
@@ -69,22 +97,26 @@ This template opts for reliability and GTM compatibility over advanced JS featur
 ## 🛠 Field Notes
 
 - **Value** is auto-converted to a number with 2 decimal places
-- **Array-type** properties should be comma-separated (e.g. `Program,Certification,B2C`)
+- **Array-type** properties should be comma-separated (e.g. `Program,Certification,B2C`) — currently supported for Event Properties only
+- **Boolean-type** properties accept `true`/`false` and are preserved as real booleans, not converted to `0`/`1`
 - **Exchange ID** should reference a GTM Cookie Variable for `_kx` (e.g. `{{Cookie - _kx}}`)
 - **Profile Properties** will update persistent fields on the Klaviyo profile
-- **Event Volume Limit** adds a time-bucketed `$event_id` to deduplicate repeated events
-  - For example, if set to `1`, events will only track once per hour per profile
+- **Event Volume Limit** is enforced with a `kmt-log` browser cookie, not a Klaviyo-side mechanism
+  - For example, if set to `1`, the same event won't fire again from the same browser for 1 hour
+  - The cookie is scoped to your top-level domain (e.g. `.corporatefinanceinstitute.com`), so the limit holds across subdomains
+  - If you need to re-test an event during development, clear the `kmt-log` cookie in your browser's DevTools (Application → Cookies), or disable the "Limit how often this event tracks?" checkbox
 - If both **email** and **_kx** are missing, the event will still be tracked anonymously (unless profile properties are used)
 
 ---
 
 ## 🧪 Testing
 
-This template includes a full test suite to verify behavior such as:
+This template includes a test suite to verify behavior such as:
 - Firing `identify` with email or `$exchange_id`
 - Correctly formatting `value` and typed properties
-- Applying `$event_id` deduplication window correctly
 - Preventing tracking if no event name is set
+
+> **Note:** The cookie-based volume limiting introduced in this version (`getCookieValues`/`setCookie`) is not yet covered by the automated test suite above — it's been verified through manual/live testing (see the debug session notes) but would benefit from dedicated cookie-mocked test cases in a future update.
 
 ---
 
@@ -96,7 +128,8 @@ MIT © 2025 - Ross Hopkins
 
 ## 📬 Future Plans
 
-A server-side version (`gtm-server-klaviyo-metric-tracker`) is planned for use with GTM server containers and Klaviyo’s Event API.
+- **Array-type support for Profile Properties.** Event Properties already accept comma-separated arrays; Profile Properties currently only support text, number, and boolean. Mirroring array support across is a planned near-term addition.
+- A server-side version (`gtm-server-klaviyo-metric-tracker`) is planned for use with GTM server containers and Klaviyo’s Event API.
 
 ---
 

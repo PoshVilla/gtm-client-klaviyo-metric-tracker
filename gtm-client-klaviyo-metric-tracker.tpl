@@ -113,6 +113,10 @@ ___TEMPLATE_PARAMETERS___
             "displayValue": "Number"
           },
           {
+            "value": "boolean",
+            "displayValue": "Boolean"
+          },
+          {
             "value": "array",
             "displayValue": "Array"
           }
@@ -162,6 +166,10 @@ ___TEMPLATE_PARAMETERS___
           {
             "value": "number",
             "displayValue": "Number"
+          },
+          {
+            "value": "boolean",
+            "displayValue": "Boolean"
           }
         ],
         "macrosInSelect": true
@@ -216,6 +224,12 @@ const createQueue = require('createQueue');
 const dataLayerPush = createQueue('dataLayer');
 const logToConsole = require('logToConsole');
 
+// Cookie + time helpers (GTM template APIs)
+const getCookieValues = require('getCookieValues');
+const setCookie = require('setCookie');
+const getTimestampMillis = require('getTimestampMillis');
+const getUrl = require('getUrl');
+
 // Setup queue for Klaviyo (_learnq)
 const _learnq = createQueue('_learnq');
 
@@ -230,6 +244,10 @@ const sendProfileProperties = data.sendProfileProperties === true;
 const eventVolumeLimit = data.eventVolumeLimit === true;
 const eventVolumeLimitHours = toInt(data.eventVolumeLimitHours || 1);
 const debug = data.debug === true;
+
+// Cookie config
+const KMT_COOKIE_NAME = 'kmt-log';
+const KMT_COOKIE_MAX_AGE_SECONDS = 31536000; // 1 year
 
 // === Helper: Trim Whitespace ===
 function trim(str) {
@@ -273,9 +291,194 @@ function parseArray(value) {
 }
 
 // === Helper: Coerce to number if valid, else string ===
+// NOTE: Booleans are handled before this is called — do not pass boolean values here.
 function coerceValue(val) {
   var num = val * 1;
   return (typeof num === 'number' && num === num) ? num : val;
+}
+
+// === Helper: Coerce boolean — accepts true/false or the strings "true"/"false" ===
+function coerceBool(val) {
+  if (val === true || val === 'true') return true;
+  if (val === false || val === 'false') return false;
+  return false; // safe default for unexpected input
+}
+
+// === Helper: Check if a value is empty (null, undefined, or blank string) ===
+// Never call this for boolean-typed properties — false is a valid value.
+function isEmpty(val) {
+  return val === null || val === undefined || (val + '') === '';
+}
+
+// === Helper: Now seconds (no Math) ===
+function getNowSeconds() {
+  var ms = getTimestampMillis();
+  return ((ms - (ms % 1000)) / 1000);
+}
+
+// === Helper: Normalize event key for cookie storage (lean + delimiter-safe) ===
+// - lowercase
+// - spaces -> _
+// - replace ':' and '|' -> _
+function normalizeEventKey(name) {
+  var s = (name || '') + '';
+  var out = '';
+  var i = 0;
+  var ch = '';
+  s = s.toLowerCase();
+
+  for (i = 0; i < s.length; i++) {
+    ch = s.charAt(i);
+
+    if (ch === ' ') out += '_';
+    else if (ch === ':' || ch === '|') out += '_';
+    else out += ch;
+  }
+
+  // Avoid empty key
+  if (out === '') out = 'event';
+  return out;
+}
+
+// === Helper: Host + cookie domain derivation (last 2 labels only) ===
+function getHostname() {
+  // If you later add a field for {{Page Hostname}}, you can pass it as data.pageHostname
+  var h = (data.pageHostname || '') + '';
+  if (h === '') h = (getUrl('host') || '') + '';
+  return h;
+}
+
+function deriveCookieDomain(hostname) {
+  var parts = (hostname || '').split('.');
+  var len = parts.length;
+
+  // last two labels only, e.g. learn.corporatefinanceinstitute.com -> .corporatefinanceinstitute.com
+  if (len >= 2) return '.' + parts[len - 2] + '.' + parts[len - 1];
+
+  // If we can't derive, return empty (host-only cookie)
+  return '';
+}
+
+function getCookieString(name) {
+  var vals = getCookieValues(name);
+  if (vals && vals.length > 0) return (vals[0] || '') + '';
+  return '';
+}
+
+function writeKmtCookie(cookieDomain, value) {
+  var opts = {
+    path: '/',
+    'max-age': KMT_COOKIE_MAX_AGE_SECONDS
+  };
+  if (cookieDomain !== '') opts.domain = cookieDomain;
+  setCookie(KMT_COOKIE_NAME, value, opts);
+}
+
+// cookieValue format: eventKey:unixSeconds|eventKey2:unixSeconds
+function getLastSeconds(cookieValue, eventKey) {
+  var entries = (cookieValue || '').split('|');
+  var i = 0;
+  var entry = '';
+  var colon = -1;
+  var k = '';
+  var v = '';
+
+  for (i = 0; i < entries.length; i++) {
+    entry = entries[i];
+    if (entry === '') continue;
+
+    colon = entry.indexOf(':');
+    if (colon <= 0) continue;
+
+    k = entry.substring(0, colon);
+    if (k === eventKey) {
+      v = entry.substring(colon + 1);
+      return toInt(v);
+    }
+  }
+
+  return 0;
+}
+
+function upsertEntry(cookieValue, eventKey, nowSeconds) {
+  var entries = (cookieValue || '').split('|');
+  var out = '';
+  var found = false;
+
+  var i = 0;
+  var entry = '';
+  var colon = -1;
+  var k = '';
+
+  for (i = 0; i < entries.length; i++) {
+    entry = entries[i];
+    if (entry === '') continue;
+
+    colon = entry.indexOf(':');
+    if (colon <= 0) continue;
+
+    k = entry.substring(0, colon);
+
+    if (k === eventKey) {
+      // replace existing
+      if (out !== '') out += '|';
+      out += eventKey + ':' + nowSeconds;
+      found = true;
+    } else {
+      // keep existing
+      if (out !== '') out += '|';
+      out += entry;
+    }
+  }
+
+  if (!found) {
+    if (out !== '') out += '|';
+    out += eventKey + ':' + nowSeconds;
+  }
+
+  return out;
+}
+
+// === Volume limit gate (cookie-based) ===
+function shouldSkipByVolumeLimit() {
+  if (!eventVolumeLimit) return false;
+
+  var hostname = getHostname();
+  var cookieDomain = deriveCookieDomain(hostname);
+
+  var eventKey = normalizeEventKey(eventName);
+  var nowSeconds = getNowSeconds();
+  var limitSeconds = eventVolumeLimitHours * 60 * 60;
+
+  if (debug) {
+    logToConsole('Klaviyo Tracker: Volume limit enabled');
+  }
+
+  var cookieValue = getCookieString(KMT_COOKIE_NAME);
+
+  // First time: create cookie entry and allow tracking
+  if (cookieValue === '') {
+    var initial = eventKey + ':' + nowSeconds;
+    writeKmtCookie(cookieDomain, initial);
+    if (debug) logToConsole('Klaviyo Tracker: Cookie missing; created ' + initial);
+    return false;
+  }
+
+  var lastSeconds = getLastSeconds(cookieValue, eventKey);
+
+  if (lastSeconds && (nowSeconds - lastSeconds) < limitSeconds) {
+    if (debug) {
+      logToConsole('Klaviyo Tracker: SKIP - within volume limit window (now=' + nowSeconds + ', last=' + lastSeconds + ')');
+    }
+    return true;
+  }
+
+  // Outside window (or no prior entry): update cookie and allow tracking
+  var updated = upsertEntry(cookieValue, eventKey, nowSeconds);
+  writeKmtCookie(cookieDomain, updated);
+
+  if (debug) logToConsole('Klaviyo Tracker: ALLOW - outside window; cookie updated');
+  return false;
 }
 
 // === Build eventProperties ===
@@ -283,7 +486,6 @@ var eventProperties = {};
 
 if (eventValue !== '' && eventValue !== '0') {
   eventProperties.value = toTwoDecimals(eventValue);
-  if (debug) logToConsole('Klaviyo Tracker: value added = ' + eventProperties.value);
 }
 
 for (var i = 0; i < eventParams.length; i++) {
@@ -292,30 +494,29 @@ for (var i = 0; i < eventParams.length; i++) {
   var type = eventParams[i].propertyType;
 
   if (key && key !== '') {
-    if (type === 'number') {
-      eventProperties[key] = toInt(val);
-    } else if (type === 'array') {
-      eventProperties[key] = parseArray(val);
-    } else {
-      eventProperties[key] = val;
+    // Boolean: false is a valid value — guard must not treat it as empty.
+    // All other types: skip null, undefined, and blank strings.
+    if (type === 'boolean') {
+      eventProperties[key] = coerceBool(val);
+    } else if (!isEmpty(val)) {
+      if (type === 'number') {
+        eventProperties[key] = toInt(val);
+      } else if (type === 'array') {
+        eventProperties[key] = parseArray(val);
+      } else {
+        eventProperties[key] = val;
+      }
     }
-
-    if (debug) logToConsole('Klaviyo Tracker: ' + key + ' = ' + eventProperties[key]);
   }
 }
 
-// === Apply $event_id based on volume limit logic ===
-if (eventVolumeLimit) {
-  var timestamp = data.timestamp * 1; // milliseconds since epoch
-  var windowMs = eventVolumeLimitHours * 60 * 60 * 1000;
-  var rounded = (timestamp / windowMs + '') .split('.')[0] * 1;
-  var eventIdKey = '$event_id';
-  eventProperties[eventIdKey] = rounded;
-
-  if (debug) logToConsole('Klaviyo Tracker: $event_id = ' + rounded);
-}
+// NOTE: Removed $event_id logic — it did not enforce volume limiting for _learnq.track()
 
 // === Build profileProperties ===
+// NOTE: profileParams is expected to have propertyKey, propertyValue, and propertyType columns.
+// If your template UI definition does not yet include a Type column for Profile Properties,
+// add it to match the Event Properties table — boolean values will not be handled correctly
+// without it, as coerceValue() converts false to 0.
 var profileProperties = {};
 var hasProfileProps = false;
 
@@ -323,11 +524,18 @@ if (sendProfileProperties) {
   for (var j = 0; j < profileParams.length; j++) {
     var pKey = profileParams[j].propertyKey;
     var pVal = profileParams[j].propertyValue;
+    var pType = profileParams[j].propertyType;
 
     if (pKey && pKey !== '') {
-      profileProperties[pKey] = coerceValue(pVal);
-      hasProfileProps = true;
-      if (debug) logToConsole('Klaviyo Tracker: profile ' + pKey + ' = ' + profileProperties[pKey]);
+      // Boolean: false is a valid value — coerceValue() must not be called on booleans
+      // as false * 1 = 0, which would silently corrupt the value.
+      if (pType === 'boolean') {
+        profileProperties[pKey] = coerceBool(pVal);
+        hasProfileProps = true;
+      } else if (!isEmpty(pVal)) {
+        profileProperties[pKey] = coerceValue(pVal);
+        hasProfileProps = true;
+      }
     }
   }
 }
@@ -344,21 +552,13 @@ if (email !== '') {
   var exchangeKey = '$exchange_id';
   identifyPayload[exchangeKey] = exchangeId;
   sendIdentify = true;
-  if (debug) dataLayerPush({ event: 'Klaviyo Identify', message: 'Identified via $exchange_id', exchangeId: exchangeId });
 }
 
 if (sendProfileProperties && hasProfileProps) {
-  for (var key in profileProperties) {
-    identifyPayload[key] = profileProperties[key];
+  for (var key2 in profileProperties) {
+    identifyPayload[key2] = profileProperties[key2];
   }
   sendIdentify = true;
-  if (debug && !email && !exchangeId) {
-    dataLayerPush({ event: 'Klaviyo Identify', message: 'Identified via profile properties only' });
-  }
-}
-
-if (!sendIdentify && debug) {
-  dataLayerPush({ event: 'Klaviyo Identify', message: 'No identifier provided' });
 }
 
 if (sendIdentify) {
@@ -367,18 +567,22 @@ if (sendIdentify) {
 
 // === Track ===
 if (eventName) {
-  _learnq(['track', eventName, eventProperties]);
+  if (shouldSkipByVolumeLimit()) {
+    data.gtmOnSuccess();
+  } else {
+    _learnq(['track', eventName, eventProperties]);
 
-  if (debug) {
-    logToConsole('Klaviyo Tracker: Event sent - ' + eventName);
-    dataLayerPush({
-      event: 'Klaviyo Event Tracked',
-      eventName: eventName,
-      properties: eventProperties
-    });
+    if (debug) {
+      logToConsole('Klaviyo Tracker: Event sent - ' + eventName);
+      dataLayerPush({
+        event: 'Klaviyo Event Tracked',
+        eventName: eventName,
+        properties: eventProperties
+      });
+    }
+
+    data.gtmOnSuccess();
   }
-
-  data.gtmOnSuccess();
 } else {
   if (debug) logToConsole('Klaviyo Tracker: No event name provided.');
   data.gtmOnFailure('Missing event name.');
