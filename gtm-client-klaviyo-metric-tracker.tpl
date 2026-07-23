@@ -190,7 +190,7 @@ ___TEMPLATE_PARAMETERS___
   },
   {
     "type": "TEXT",
-    "name": "echangeId",
+    "name": "exchangeId",
     "displayName": "_kx Cookie (Exchange Id)",
     "simpleValueType": true,
     "valueValidators": [

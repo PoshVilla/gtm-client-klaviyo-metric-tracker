@@ -24,7 +24,9 @@ First, **True/False (boolean) values are now handled correctly everywhere**. Pre
 
 Second, **the "don't track this more than once every X hours" option now actually works as intended**. Previously it relied on a trick that, on investigation, never really stopped duplicate events from reaching Klaviyo. It's been replaced with a proper mechanism: the tag remembers (via a small browser cookie) the last time each event fired, and skips re-firing it within your chosen time window — the same way it always should have.
 
-Neither change requires you to reconfigure existing tags, though you'll now see a **Boolean** option in the Property Type dropdown that wasn't there before.
+There's also a small but important fix: the "_kx Cookie (Exchange Id)" field had an internal naming mismatch that meant, in the actual tracking script, whatever you typed into that field was silently ignored — it never reached Klaviyo. That's now corrected, so identifying visitors by their `_kx` cookie actually works.
+
+Two of these three changes don't require you to reconfigure existing tags. **The Exchange ID fix does**: because of how the mismatch is corrected (see Technical Summary), any tag that already had a value in the "_kx Cookie (Exchange Id)" field will need that value re-entered after updating to this version — the field will otherwise appear blank. You'll also now see a **Boolean** option in the Property Type dropdown that wasn't there before.
 
 ### Technical Summary
 
@@ -36,6 +38,7 @@ Neither change requires you to reconfigure existing tags, though you'll now see 
 - **Added debug logging for the volume-limit gate** — when Debug mode is enabled, the tag now logs when the limit is active, when a cookie is created, and when/why an event is skipped, making it much easier to tell "volume limited" apart from "actually failed" during testing.
 - **Removed the dead `$event_id` logic** entirely, along with the debug logging tied to it, to keep the code path simple and honest about what it's doing.
 - **New required GTM permissions:** the cookie-based approach calls `getCookieValues`, `setCookie`, and `getUrl`, none of which the previous version needed. If you're editing this template directly in GTM's Template editor, GTM will prompt you to grant these permissions the first time you save — accept that prompt so the permissions block matches what the code actually needs.
+- **Fixed the Exchange ID parameter name.** The template parameter was named `echangeId` (typo) while the script read `data.exchangeId` — meaning the "_kx Cookie (Exchange Id)" field was never actually wired up to the tracking logic; any value entered there was silently dropped. The parameter is now correctly named `exchangeId`, matching both the script and the repo's own `sample-klaviyo-tag.json`. **Action required:** any tag already using this field will show it as blank after updating and needs the value re-entered (e.g. `{{Cookie - _kx}}`).
 
 ---
 
